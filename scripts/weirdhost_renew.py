@@ -331,8 +331,18 @@ def is_logged_in(sb):
             return False
         if get_expiry_from_page(sb) != "Unknown":
             return True
-        if sb.is_element_present("//button//span[contains(text(), '시간추가')]"):
-            return True
+        # 更新按钮检测 - 支持新旧按钮文本
+        renewal_buttons = [
+            "//button//span[contains(text(), '연장하기')]",
+            "//button[contains(text(), '연장하기')]", 
+            "//button//span[contains(text(), '시간추가')]",
+            "//button[contains(text(), '시간추가')]",
+            "//button//span[contains(text(), '시간 추가')]",
+            "//button[contains(text(), '시간 추가')]"
+        ]
+        for btn_xpath in renewal_buttons:
+            if sb.is_element_present(btn_xpath):
+                return True
         return False
     except:
         return False
@@ -552,7 +562,8 @@ def check_popup_still_open(sb):
             var buttons = document.querySelectorAll('button');
             for (var i = 0; i < buttons.length; i++) {
                 var text = buttons[i].innerText || '';
-                if (text.includes('시간추가') && !text.includes('DELETE')) {
+                // 更新检测逻辑 - 支持新旧按钮文本
+                if ((text.includes('시간추가') || text.includes('시간 추가') || text.includes('연장하기')) && !text.includes('DELETE')) {
                     var rect = buttons[i].getBoundingClientRect();
                     if (rect.x > 200 && rect.width > 0) {
                         return true;
@@ -848,14 +859,27 @@ def process_single_account(sb, account, account_index):
         remaining_display = f"{remaining_days:.2f}" if remaining_days is not None else "?"
         print(f"[+] 剩余 {remaining_display} 天 <= {RENEW_THRESHOLD_DAYS} 天，执行续期")
 
-        print("\n[步骤4] 点击侧栏续期按钮")
+        print("\n[步骤4] 点击续期按钮")
         random_delay(1.0, 2.0)
 
-        sidebar_btn_xpath = "//button//span[contains(text(), '시간추가')]/parent::button"
-        if not sb.is_element_present(sidebar_btn_xpath):
-            sidebar_btn_xpath = "//button[contains(., '시간추가')]"
+        # 更新按钮选择器 - 支持新旧按钮文本
+        renewal_button_selectors = [
+            "//button//span[contains(text(), '연장하기')]/parent::button",
+            "//button[contains(text(), '연장하기')]",
+            "//button//span[contains(text(), '시간추가')]/parent::button", 
+            "//button[contains(text(), '시간추가')]",
+            "//button//span[contains(text(), '시간 추가')]/parent::button",
+            "//button[contains(text(), '시간 추가')]"
+        ]
 
-        if not sb.is_element_present(sidebar_btn_xpath):
+        renewal_btn_xpath = None
+        for selector in renewal_button_selectors:
+            if sb.is_element_present(selector):
+                renewal_btn_xpath = selector
+                print(f"[+] 找到续期按钮: {selector}")
+                break
+
+        if not renewal_btn_xpath:
             screenshot_path = f"{screenshot_prefix}_no_button.png"
             sb.save_screenshot(screenshot_path)
             result["status"] = "error"
@@ -863,8 +887,8 @@ def process_single_account(sb, account, account_index):
             result["screenshot"] = screenshot_path
             return result
 
-        sb.click(sidebar_btn_xpath)
-        print("[+] 已点击侧栏按钮，等待弹窗...")
+        sb.click(renewal_btn_xpath)
+        print("[+] 已点击续期按钮，等待弹窗...")
         time.sleep(3)
 
         print("\n[步骤5] 处理续期弹窗")
